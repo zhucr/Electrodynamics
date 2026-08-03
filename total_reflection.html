@@ -598,9 +598,9 @@
                 addToScene(refrLabel);
             }
             // 基础角度弧：入射角、反射角、折射角
-            addToScene(createAngleArc(origin, 0, -ti, 1.2, 0xffab40, "θᵢ", true));
+            addToScene(createAngleArc(origin, 0, -ti, 1.2, 0xffab40, "θᵣ", true));
             if(!totalReflect) addToScene(createAngleArc(origin, Math.PI, Math.PI+tt, 0.9,0x81c784,"θₜ",false));
-            addToScene(createAngleArc(origin, 0, ti, 1.0,0x448aff,"θᵣ",true));
+            addToScene(createAngleArc(origin, 0, ti, 1.0,0x448aff,"θᵢ",true));
             // ========== 布儒斯特角 θ_B 紫色弧线标记（移除全反射判断，始终显示） ==========
             addToScene(createAngleArc(origin, 0, theta_B, 1.6, 0xce93d8, "θ_B", true));
             // 绘制临界角弧线（存在临界角时）
