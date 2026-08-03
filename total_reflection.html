@@ -25,7 +25,7 @@
             left: 15px;
             background: rgba(10, 15, 30, 0.92);
             border: 1px solid rgba(100, 150, 255, 0.3);
-            border-radius 12px;
+            border-radius: 12px;
             padding: 18px 22px;
             max-width: 400px;
             backdrop-filter: blur(10px);
@@ -36,7 +36,7 @@
             color: #4fc3f7;
             font-size: 18px;
             margin-bottom: 12px;
-            border-bottom: 1px solid rgba(100,150,0.2);
+            border-bottom: 1px solid rgba(100,150,255,0.2);
             padding-bottom: 8px;
         }
         #info-panel h3 {
@@ -55,9 +55,9 @@
             font-weight: bold;
         }
         #info-panel .formula {
-            background: rgba(255,255,0.05);
+            background: rgba(255,255,255,0.05);
             padding: 6px 10px;
-            border-radius: 6;
+            border-radius: 6px;
             font-family: 'Courier New', monospace;
             color: #ce93d8;
             margin: 6px 0;
@@ -91,7 +91,7 @@
             box-shadow: 0 0 15px rgba(79, 195, 247, 0.3);
         }
         .btn.active {
-            background: rgba79, 195, 247, 0.2;
+            background: rgba(79, 195, 247, 0.2);
             border-color: #4fc3f7;
             color: #4fc3f7;
         }
@@ -109,19 +109,19 @@
             min-width: 340px;
         }
         .slider-group {
-            margin-top:14px;
-            text-align:left;
+            margin-top: 14px;
+            text-align: left;
         }
         .slider-group label {
-            font-size:12px;
-            color:#90caf9;
-            display:flex;
-            justify-content:space-between;
-            margin-bottom:4px;
+            font-size: 12px;
+            color: #90caf9;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
         }
         .slider-val {
-            color:#ffab40;
-            font-weight:bold;
+            color: #ffab40;
+            font-weight: bold;
         }
         #angle-slider-container .angle-value {
             font-size: 36px;
@@ -208,12 +208,10 @@
 </head>
 <body>
     <div id="canvas-container"></div>
-    
+
     <div id="info-panel">
         <h2>🔬 布儒斯特角 & 全反射 3D交互可视化</h2>
         <p>拖动滑块调节入射角、介质折射率，观察偏振、折射、全反射现象。</p>
-        
-        
         <h3>操作说明</h3>
         <ul>
             <li>🖱️ <b>左键拖拽</b>：旋转视角</li>
@@ -222,12 +220,11 @@
             <li>👆 <b>按钮</b>：切换偏振显示、自动演示</li>
         </ul>
     </div>
-    
+
     <div id="angle-slider-container">
         <div class="angle-value" id="angle-val">56.3°</div>
         <div class="angle-label">入射角 θᵢ</div>
         <input type="range" id="angle-slider" min="0" max="89" value="56.3" step="0.1">
-        <!-- 折射率滑块 -->
         <div class="slider-group">
             <label>
                 <span>介质1折射率 n₁</span>
@@ -255,7 +252,7 @@
             临界角 θ_c = <span id="critical-val">无</span>
         </div>
     </div>
-    
+
     <div id="legend">
         <div class="legend-item">
             <div class="legend-color" style="background:#ffffff;"></div>
@@ -278,53 +275,62 @@
             <span>正弦波：红=p, 蓝=s</span>
         </div>
     </div>
-    
+
     <div id="controls">
         <button class="btn active" id="btn-both" onclick="setMode('both')">两者叠加</button>
         <button class="btn" id="btn-p" onclick="setMode('p')">仅p偏振</button>
         <button class="btn" id="btn-s" onclick="setMode('s')">仅s偏振</button>
         <button class="btn" id="btn-anim" onclick="toggleAnimation()">▶ 自动演示</button>
     </div>
+
     <script>
         // ============ Three.js 场景设置 ============
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0a0a12);
         scene.fog = new THREE.FogExp2(0x0a0a12, 0.015);
-        
+
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(10, 6, 12);
-        
+
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.getElementById('canvas-container').appendChild(renderer.domElement);
-        
+
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         controls.target.set(0, 0, 0);
-        
+
         // ============ 光照 ============
         const ambientLight = new THREE.AmbientLight(0x404060, 0.6);
         scene.add(ambientLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
         dirLight.position.set(5, 10, 5);
         scene.add(dirLight);
-        
+
         // ============ 全局变量 ============
         let n1 = 1.0;
         let n2 = 1.5;
         let theta_B = Math.atan(n2 / n1);
-        let theta_c = null; // 临界角，n1>n2才有值
+        let theta_c = null;
         let currentTheta_i = theta_B;
         let currentMode = 'both';
         let isAnimating = false;
         let animDirection = 1;
         let sceneObjects = [];
         let time = 0;
-        
-        // ============ 文字精灵 ============
+        let needsRebuild = true;
+        let animFrameCounter = 0;
+
+        // ============ 文字精灵（带缓存） ============
+        const textSpriteCache = new Map();
         function createTextSprite(text, color, scale) {
+            const key = text + '_' + color + '_' + scale;
+            if(textSpriteCache.has(key)) {
+                const cached = textSpriteCache.get(key).clone();
+                return cached;
+            }
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = 512;
@@ -338,10 +344,11 @@
             const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
             const sprite = new THREE.Sprite(spriteMat);
             sprite.scale.set(scale * 5, scale * 1.25, 1);
+            textSpriteCache.set(key, sprite.clone());
             return sprite;
         }
-        
-        // ============ 介质界面 ============
+
+        // ============ 介质界面（静态，只创建一次） ============
         function createInterface() {
             const group = new THREE.Group();
             const geom1 = new THREE.PlaneGeometry(30, 30);
@@ -354,6 +361,7 @@
             plane1.position.y = 0.01;
             plane1.renderOrder = -1;
             group.add(plane1);
+
             const geom2 = new THREE.BoxGeometry(30, 8, 30);
             const mat2 = new THREE.MeshPhysicalMaterial({
                 color: 0x0d47a1, transparent: true, opacity: 0.08,
@@ -363,30 +371,31 @@
             plane2.position.y = -4;
             plane2.renderOrder = -1;
             group.add(plane2);
-            const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-15, 0, 0), new THREE.Vector3(15, 0, 0)]);
+
+            const lineGeom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-15, 0, 0), new THREE.Vector3(15, 0, 0)
+            ]);
             const lineMat = new THREE.LineBasicMaterial({ color: 0x4fc3f7 });
             const line = new THREE.Line(lineGeom, lineMat);
             line.renderOrder = 0;
             group.add(line);
-            const normalGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 6, 0)]);
-            const normalMat = new THREE.LineDashedMaterial({ color: 0x78909c, dashSize:0.2, gapSize:0.1 });
+
+            const normalGeom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 6, 0)
+            ]);
+            const normalMat = new THREE.LineDashedMaterial({ color: 0x78909c, dashSize: 0.2, gapSize: 0.1 });
             const normal = new THREE.Line(normalGeom, normalMat);
             normal.computeLineDistances();
             normal.renderOrder = 0;
             group.add(normal);
+
             const normalLabel = createTextSprite("法线", 0x78909c, 0.35);
             normalLabel.position.set(0.5, 5.5, 0);
             group.add(normalLabel);
-            const label1 = createTextSprite(`介质1  n₁ = ${n1.toFixed(2)}`, 0x90caf9, 0.4);
-            label1.position.set(-7, 4, -5);
-            group.add(label1);
-            const label2 = createTextSprite(`介质2  n₂ = ${n2.toFixed(2)}`, 0x81c784, 0.4);
-            label2.position.set(-7, -3, -5);
-            group.add(label2);
             return group;
         }
         scene.add(createInterface());
-        
+
         // ============ 波形光线 ============
         function createWaveRay(start, direction, length, colorP, colorS, intensityP, intensityS, numCycles) {
             const group = new THREE.Group();
@@ -394,8 +403,9 @@
             const k = direction.clone().normalize();
             const pDir = new THREE.Vector3(-k.y, k.x, 0).normalize();
             const sDir = new THREE.Vector3(0, 0, 1);
-            const segments = 120;
-            if (intensityP > 0.01) {
+            const segments = 80; // 降低分段数以减少几何体复杂度
+
+            if(intensityP > 0.01) {
                 const pPoints = [];
                 for (let i = 0; i <= segments; i++) {
                     const t = i / segments;
@@ -406,18 +416,13 @@
                     pPoints.push(pos);
                 }
                 const pCurve = new THREE.CatmullRomCurve3(pPoints);
-                const pTubeGeom = new THREE.TubeGeometry(pCurve, segments, 0.025 * intensityP, 6, false);
-                const pTubeMat = new THREE.MeshBasicMaterial({ color: colorP, transparent:true, opacity:0.9, depthWrite:false });
+                const pTubeGeom = new THREE.TubeGeometry(pCurve, segments, 0.025 * intensityP, 4, false);
+                const pTubeMat = new THREE.MeshBasicMaterial({ color: colorP, transparent: true, opacity: 0.9, depthWrite: false });
                 const pTube = new THREE.Mesh(pTubeGeom, pTubeMat);
                 pTube.renderOrder = 1;
                 group.add(pTube);
-                const pGlowGeom = new THREE.TubeGeometry(pCurve, segments, 0.06 * intensityP, 6, false);
-                const pGlowMat = new THREE.MeshBasicMaterial({ color: colorP, transparent:true, opacity:0.12, depthWrite:false });
-                const pGlow = new THREE.Mesh(pGlowGeom, pGlowMat);
-                pGlow.renderOrder = 1;
-                group.add(pGlow);
             }
-            if (intensityS > 0.01) {
+            if(intensityS > 0.01) {
                 const sPoints = [];
                 for (let i = 0; i <= segments; i++) {
                     const t = i / segments;
@@ -428,62 +433,64 @@
                     sPoints.push(pos);
                 }
                 const sCurve = new THREE.CatmullRomCurve3(sPoints);
-                const sTubeGeom = new THREE.TubeGeometry(sCurve, segments, 0.025 * intensityS, 6, false);
-                const sTubeMat = new THREE.MeshBasicMaterial({ color: colorS, transparent:true, opacity:0.9, depthWrite:false });
+                const sTubeGeom = new THREE.TubeGeometry(sCurve, segments, 0.025 * intensityS, 4, false);
+                const sTubeMat = new THREE.MeshBasicMaterial({ color: colorS, transparent: true, opacity: 0.9, depthWrite: false });
                 const sTube = new THREE.Mesh(sTubeGeom, sTubeMat);
                 sTube.renderOrder = 1;
                 group.add(sTube);
-                const sGlowGeom = new THREE.TubeGeometry(sCurve, segments, 0.06 * intensityS, 6, false);
-                const sGlowMat = new THREE.MeshBasicMaterial({ color: colorS, transparent:true, opacity:0.12, depthWrite:false });
-                const sGlow = new THREE.Mesh(sGlowGeom, sGlowMat);
-                sGlow.renderOrder = 1;
-                group.add(sGlow);
             }
             const arrowPos = end.clone().add(k.clone().multiplyScalar(-0.4));
-            const arrowGeom = new THREE.ConeGeometry(0.1, 0.25, 8);
-            const arrowMat = new THREE.MeshBasicMaterial({ color:0xffffff, depthWrite:false });
+            const arrowGeom = new THREE.ConeGeometry(0.1, 0.25, 6);
+            const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthWrite: false });
             const arrow = new THREE.Mesh(arrowGeom, arrowMat);
             arrow.position.copy(arrowPos);
             arrow.renderOrder = 1;
-            const up = new THREE.Vector3(0,1,0);
+            const up = new THREE.Vector3(0, 1, 0);
             arrow.quaternion.setFromUnitVectors(up, k);
             group.add(arrow);
             return group;
         }
-        
+
         // ============ 入射面高亮 ============
         function createIncidencePlaneHighlight() {
             const group = new THREE.Group();
             const planeGeom = new THREE.PlaneGeometry(16, 12);
-            const planeMat = new THREE.MeshBasicMaterial({ color:0x4fc3f7, transparent:true, opacity:0.06, side:THREE.DoubleSide, depthWrite:false });
+            const planeMat = new THREE.MeshBasicMaterial({ 
+                color: 0x4fc3f7, transparent: true, opacity: 0.06, 
+                side: THREE.DoubleSide, depthWrite: false 
+            });
             const plane = new THREE.Mesh(planeGeom, planeMat);
             plane.renderOrder = 0;
             plane.position.set(0, 1, 0);
             group.add(plane);
+
             const borderPoints = [
-                new THREE.Vector3(-8,-3,0),new THREE.Vector3(-8,7,0),new THREE.Vector3(8,7,0),new THREE.Vector3(8,-3,0),new THREE.Vector3(-8,-3,0)
+                new THREE.Vector3(-8, -3, 0), new THREE.Vector3(-8, 7, 0),
+                new THREE.Vector3(8, 7, 0), new THREE.Vector3(8, -3, 0), new THREE.Vector3(-8, -3, 0)
             ];
             const borderGeom = new THREE.BufferGeometry().setFromPoints(borderPoints);
-            const borderMat = new THREE.LineBasicMaterial({ color:0x4fc3f7, transparent:true, opacity:0.4 });
+            const borderMat = new THREE.LineBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.4 });
             const borderLine = new THREE.Line(borderGeom, borderMat);
             borderLine.renderOrder = 0;
             group.add(borderLine);
+
             const label = createTextSprite("入射面 (x-y平面)", 0x4fc3f7, 0.4);
-            label.position.set(6,6,0.1);
+            label.position.set(6, 6, 0.1);
             group.add(label);
+
             const perpLabel = createTextSprite("⊥ 入射面 (z方向)", 0xce93d8, 0.3);
-            perpLabel.position.set(0,6,1.5);
+            perpLabel.position.set(0, 6, 1.5);
             group.add(perpLabel);
             return group;
         }
-        
+
         // ============ 角度弧线 ============
         function createAngleArc(center, startAngle, endAngle, radius, color, label, isAbove) {
             const group = new THREE.Group();
             const points = [];
-            const segments = 40;
+            const segments = 30; // 降低分段数
             const zOffset = isAbove ? 0.05 : -0.05;
-            for (let i=0; i<=segments; i++) {
+            for (let i = 0; i <= segments; i++) {
                 const t = i / segments;
                 const ang = startAngle + (endAngle - startAngle) * t;
                 points.push(new THREE.Vector3(
@@ -500,8 +507,8 @@
             if(label) {
                 const midAng = (startAngle + endAngle) / 2;
                 const pos = new THREE.Vector3(
-                    center.x + (radius+0.5)*Math.sin(midAng),
-                    center.y + (radius+0.5)*Math.cos(midAng),
+                    center.x + (radius + 0.5) * Math.sin(midAng),
+                    center.y + (radius + 0.5) * Math.cos(midAng),
                     center.z + 0.1
                 );
                 const sp = createTextSprite(label, color, 0.3);
@@ -510,45 +517,60 @@
             }
             return group;
         }
-        
+
         // ============ 菲涅尔与全反射判断 ============
         function calcOptics(ti, n1, n2) {
             const s_i = Math.sin(ti);
             const c_i = Math.cos(ti);
             let tc = null;
             let totalReflect = false;
-            let st = 0;
             let tt = 0;
-            let Rp=1, Rs=1;
-            // 仅n1>n2存在临界角
+            let Rp = 1, Rs = 1;
+
             if(n1 > n2) {
                 const sinC = n2 / n1;
                 tc = Math.asin(sinC);
                 if(ti >= tc) {
                     totalReflect = true;
-                    return {Rp,Rs,tt,totalReflect,theta_c:tc};
+                    return { Rp, Rs, tt, totalReflect, theta_c: tc };
                 }
             }
-            // 正常折射
-            st = (n1 / n2) * s_i;
+            const st = (n1 / n2) * s_i;
             tt = Math.asin(st);
             const ct = Math.cos(tt);
-            const rp = (n2*c_i - n1*ct) / (n2*c_i + n1*ct);
-            const rs = (n1*c_i - n2*ct) / (n1*c_i + n2*ct);
-            Rp = rp*rp;
-            Rs = rs*rs;
-            return {Rp,Rs,theta_t:tt,totalReflect,theta_c:tc};
+            const rp = (n2 * c_i - n1 * ct) / (n2 * c_i + n1 * ct);
+            const rs = (n1 * c_i - n2 * ct) / (n1 * c_i + n2 * ct);
+            Rp = rp * rp;
+            Rs = rs * rs;
+            return { Rp, Rs, theta_t: tt, totalReflect, theta_c: tc };
         }
-        
+
+        // ============ 安全清理场景对象（关键修复：释放GPU内存） ============
         function clearSceneObjects() {
-            for(let i=0; i<sceneObjects.length; i++) scene.remove(sceneObjects[i]);
+            for(let i = 0; i < sceneObjects.length; i++) {
+                const obj = sceneObjects[i];
+                scene.remove(obj);
+                obj.traverse(child => {
+                    if(child.geometry) {
+                        child.geometry.dispose();
+                    }
+                    if(child.material) {
+                        const mats = Array.isArray(child.material) ? child.material : [child.material];
+                        mats.forEach(m => {
+                            if(m.map) m.map.dispose();
+                            m.dispose();
+                        });
+                    }
+                });
+            }
             sceneObjects = [];
         }
+
         function addToScene(obj) {
             scene.add(obj);
             sceneObjects.push(obj);
         }
-        
+
         // ============ 重建场景 ============
         function buildScene() {
             clearSceneObjects();
@@ -560,91 +582,98 @@
             const tt = opt.theta_t;
             const totalReflect = opt.totalReflect;
             theta_c = opt.theta_c;
+
             const k_i = new THREE.Vector3(-Math.sin(ti), -Math.cos(ti), 0).normalize();
-            const k_r = new THREE.Vector3(Math.sin(ti), Math.cos(ti), 0).normalize();
             const k_r2 = new THREE.Vector3(-Math.sin(ti), Math.cos(ti), 0).normalize();
-            const k_t = new THREE.Vector3(Math.sin(tt), -Math.cos(tt), 0).normalize();
             const k_t2 = new THREE.Vector3(-Math.sin(tt), -Math.cos(tt), 0).normalize();
-            const origin = new THREE.Vector3(0,0,0);
+            const origin = new THREE.Vector3(0, 0, 0);
             const rayLen = 6;
             const incidentStart = origin.clone().add(k_i.clone().multiplyScalar(-rayLen));
             const showP = currentMode === 'p' || currentMode === 'both';
             const showS = currentMode === 's' || currentMode === 'both';
+
             addToScene(createIncidencePlaneHighlight());
+
             // 入射光
-            const incRay = createWaveRay(incidentStart, k_i, rayLen, 0xff5252,0x448aff, showP?1:0, showS?1:0,10);
+            const incRay = createWaveRay(incidentStart, k_i, rayLen, 0xff5252, 0x448aff, showP ? 1 : 0, showS ? 1 : 0, 10);
             addToScene(incRay);
-            const incLabel = createTextSprite("入射光",0xffffff,0.35);
-            incLabel.position.copy(incidentStart).add(new THREE.Vector3(-0.8,0.5,0));
+            const incLabel = createTextSprite("入射光", 0xffffff, 0.35);
+            incLabel.position.copy(incidentStart).add(new THREE.Vector3(-0.8, 0.5, 0));
             addToScene(incLabel);
+
             // 反射光
             const refP = showP ? Math.sqrt(Rp) : 0;
             const refS = showS ? Math.sqrt(Rs) : 0;
-            if(refP>0.005 || refS>0.005) {
-                const refRay = createWaveRay(origin, k_r2, rayLen*0.8, 0xff5252,0x448aff, refP, refS,8);
+            if(refP > 0.005 || refS > 0.005) {
+                const refRay = createWaveRay(origin, k_r2, rayLen * 0.8, 0xff5252, 0x448aff, refP, refS, 8);
                 addToScene(refRay);
-                const refLabel = createTextSprite("反射光",0xffab40,0.35);
-                refLabel.position.copy(origin.clone().add(k_r2.clone().multiplyScalar(rayLen*0.5))).add(new THREE.Vector3(0.3,0.5,0));
+                const refLabel = createTextSprite("反射光", 0xffab40, 0.35);
+                refLabel.position.copy(origin.clone().add(k_r2.clone().multiplyScalar(rayLen * 0.5))).add(new THREE.Vector3(0.3, 0.5, 0));
                 addToScene(refLabel);
             }
-            // 折射光：全反射时不绘制
+
+            // 折射光
             if(!totalReflect) {
-                const trP = showP ? Math.sqrt(1-Rp) : 0;
-                const trS = showS ? Math.sqrt(1-Rs) : 0;
-                const refrRay = createWaveRay(origin, k_t2, rayLen, 0xff5252,0x448aff, trP, trS,8);
+                const trP = showP ? Math.sqrt(1 - Rp) : 0;
+                const trS = showS ? Math.sqrt(1 - Rs) : 0;
+                const refrRay = createWaveRay(origin, k_t2, rayLen, 0xff5252, 0x448aff, trP, trS, 8);
                 addToScene(refrRay);
-                const refrLabel = createTextSprite("折射光",0x69f0ae,0.35);
-                refrLabel.position.copy(origin.clone().add(k_t2.clone().multiplyScalar(rayLen*0.6))).add(new THREE.Vector3(0.3,-0.5,0));
+                const refrLabel = createTextSprite("折射光", 0x69f0ae, 0.35);
+                refrLabel.position.copy(origin.clone().add(k_t2.clone().multiplyScalar(rayLen * 0.6))).add(new THREE.Vector3(0.3, -0.5, 0));
                 addToScene(refrLabel);
             }
-            // 基础角度弧：入射角、反射角、折射角
+
+            // 角度弧
             addToScene(createAngleArc(origin, 0, -ti, 1.2, 0xffab40, "θᵣ", true));
-            if(!totalReflect) addToScene(createAngleArc(origin, Math.PI, Math.PI+tt, 0.9,0x81c784,"θₜ",false));
-            addToScene(createAngleArc(origin, 0, ti, 1.0,0x448aff,"θᵢ",true));
-            // ========== 布儒斯特角 θ_B 紫色弧线标记（移除全反射判断，始终显示） ==========
+            if(!totalReflect) addToScene(createAngleArc(origin, Math.PI, Math.PI + tt, 0.9, 0x81c784, "θₜ", false));
+            addToScene(createAngleArc(origin, 0, ti, 1.0, 0x448aff, "θᵢ", true));
             addToScene(createAngleArc(origin, 0, theta_B, 1.6, 0xce93d8, "θ_B", true));
-            // 绘制临界角弧线（存在临界角时）
             if(theta_c !== null) {
                 addToScene(createAngleArc(origin, 0, -theta_c, 1.4, 0xffcc80, "θ_c", true));
             }
-            // 90°直角标记（仅无全反射时才显示，因为全反射无折射光）
-            if(Math.abs(ti + tt - Math.PI/2) < 0.05 && !totalReflect) {
-                const raPos = origin.clone().add(k_r2.clone().multiplyScalar(0.6)).add(k_t.clone().multiplyScalar(0.4));
+
+            // 90°直角标记
+            if(Math.abs(ti + tt - Math.PI / 2) < 0.05 && !totalReflect) {
+                const raPos = origin.clone().add(k_r2.clone().multiplyScalar(0.6)).add(k_t2.clone().multiplyScalar(-0.4));
                 const raPoints = [
-                    raPos.clone().add(new THREE.Vector3(0.2,0,0)), raPos, raPos.clone().add(new THREE.Vector3(0,0.2,0))
+                    raPos.clone().add(new THREE.Vector3(0.2, 0, 0)),
+                    raPos,
+                    raPos.clone().add(new THREE.Vector3(0, 0.2, 0))
                 ];
                 const raGeom = new THREE.BufferGeometry().setFromPoints(raPoints);
-                const raMat = new THREE.LineBasicMaterial({color:0xffab40, depthWrite:false});
+                const raMat = new THREE.LineBasicMaterial({ color: 0xffab40, depthWrite: false });
                 const raLine = new THREE.Line(raGeom, raMat);
                 raLine.renderOrder = 1;
                 addToScene(raLine);
-                const raLabel = createTextSprite("90°",0xffab40,0.25);
-                raLabel.position.copy(raPos).add(new THREE.Vector3(-0.3,0.2,0));
+                const raLabel = createTextSprite("90°", 0xffab40, 0.25);
+                raLabel.position.copy(raPos).add(new THREE.Vector3(-0.3, 0.2, 0));
                 addToScene(raLabel);
             }
+
             // 场景文字提示
             if(totalReflect) {
                 const trLabel = createTextSprite("⚠️ 全内反射，无折射光", 0xffcc80, 0.4);
                 trLabel.position.set(-3, 3, 2);
                 addToScene(trLabel);
-            } else if(Math.abs(ti-theta_B) < 0.02 && showP) {
-                const bLabel = createTextSprite("完全线偏振光",0xff5252,0.4);
-                bLabel.position.set(-3,3,2);
+            } else if(Math.abs(ti - theta_B) < 0.02 && showP) {
+                const bLabel = createTextSprite("完全线偏振光", 0xff5252, 0.4);
+                bLabel.position.set(-3, 3, 2);
                 addToScene(bLabel);
             }
+
             // 反射率文字
-            const RpPct = (Rp*100).toFixed(1);
-            const RsPct = (Rs*100).toFixed(1);
-            const infoLabel = createTextSprite(`Rp = ${RpPct}%    Rs = ${RsPct}%`, 0xb0b8c8,0.3);
-            infoLabel.position.set(0,2,0);
+            const RpPct = (Rp * 100).toFixed(1);
+            const RsPct = (Rs * 100).toFixed(1);
+            const infoLabel = createTextSprite(`Rp = ${RpPct}%    Rs = ${RsPct}%`, 0xb0b8c8, 0.3);
+            infoLabel.position.set(0, 2, 0);
             addToScene(infoLabel);
+
             updateUI(ti, tt, Rp, Rs, totalReflect);
         }
-        
-        // ============ 更新UI（新增全反射、临界角显示） ============
+
+        // ============ 更新UI ============
         function updateUI(ti, tt, Rp, Rs, totalReflect) {
             const deg_i = (ti * 180 / Math.PI).toFixed(1);
-            const deg_t = totalReflect ? "无" : (tt * 180 / Math.PI).toFixed(1);
             const sum = totalReflect ? "无" : ((ti + tt) * 180 / Math.PI).toFixed(1);
             const deg_B = (theta_B * 180 / Math.PI).toFixed(1);
             const deg_C = theta_c === null ? "无" : (theta_c * 180 / Math.PI).toFixed(1);
@@ -654,63 +683,85 @@
             document.getElementById('critical-val').textContent = deg_C;
             document.getElementById('n1-val').textContent = n1.toFixed(2);
             document.getElementById('n2-val').textContent = n2.toFixed(2);
+
             const statusEl = document.getElementById('brewster-status');
-            const isBrewster = !totalReflect && Math.abs(ti-theta_B) < 0.02;
+            const isBrewster = !totalReflect && Math.abs(ti - theta_B) < 0.02;
             if(totalReflect) {
                 statusEl.className = "brewster-indicator total-reflection";
                 statusEl.innerHTML = "⚠️ 全内反射，无折射光<br><span style='font-size:11px;font-weight:normal;'>Rp=100% Rs=100%</span>";
             } else if(isBrewster) {
                 statusEl.className = "brewster-indicator is-brewster";
-                statusEl.innerHTML = "✅ 布儒斯特角！反射光为完全线偏振光<br><span style='font-size:11px;font-weight:normal;'>Rp≈0% Rs≈"+(Rs*100).toFixed(1)+"%</span>";
+                statusEl.innerHTML = "✅ 布儒斯特角！反射光为完全线偏振光<br><span style='font-size:11px;font-weight:normal;'>Rp≈0% Rs≈" + (Rs * 100).toFixed(1) + "%</span>";
             } else {
                 statusEl.className = "brewster-indicator not-brewster";
-                statusEl.innerHTML = "❌ 非布儒斯特角<br><span style='font-size:11px;font-weight:normal;'>Rp="+(Rp*100).toFixed(1)+"% Rs="+(Rs*100).toFixed(1)+"%</span>";
+                statusEl.innerHTML = "❌ 非布儒斯特角<br><span style='font-size:11px;font-weight:normal;'>Rp=" + (Rp * 100).toFixed(1) + "% Rs=" + (Rs * 100).toFixed(1) + "%</span>";
             }
         }
-        
+
         // ============ 控制事件 ============
         function setMode(mode) {
             currentMode = mode;
-            document.querySelectorAll('.btn').forEach(b=>{if(b.id!=='btn-anim')b.classList.remove('active');});
-            document.getElementById('btn-'+mode).classList.add('active');
-            buildScene();
+            document.querySelectorAll('.btn').forEach(b => { if(b.id !== 'btn-anim') b.classList.remove('active'); });
+            document.getElementById('btn-' + mode).classList.add('active');
+            needsRebuild = true;
         }
+
         function toggleAnimation() {
             isAnimating = !isAnimating;
             document.getElementById('btn-anim').textContent = isAnimating ? "⏸ 停止演示" : "▶ 自动演示";
         }
-        document.getElementById('angle-slider').addEventListener('input',e=>{
+
+        document.getElementById('angle-slider').addEventListener('input', e => {
             currentTheta_i = parseFloat(e.target.value) * Math.PI / 180;
-            buildScene();
+            needsRebuild = true;
         });
-        document.getElementById('n1-slider').addEventListener('input',e=>{
+        document.getElementById('n1-slider').addEventListener('input', e => {
             n1 = parseFloat(e.target.value);
-            buildScene();
+            needsRebuild = true;
         });
-        document.getElementById('n2-slider').addEventListener('input',e=>{
+        document.getElementById('n2-slider').addEventListener('input', e => {
             n2 = parseFloat(e.target.value);
-            buildScene();
+            needsRebuild = true;
         });
-        
-        // ============ 渲染循环 ============
+
+        // ============ 渲染循环（关键修复：按需重建 + 动画降频） ============
         function animate() {
             requestAnimationFrame(animate);
             time += 0.01;
+
             if(isAnimating) {
                 const minA = 5 * Math.PI / 180;
                 const maxA = 85 * Math.PI / 180;
                 currentTheta_i += 0.005 * animDirection;
-                if(currentTheta_i > maxA) {currentTheta_i = maxA; animDirection=-1;}
-                if(currentTheta_i < minA) {currentTheta_i = minA; animDirection=1;}
+                if(currentTheta_i > maxA) { currentTheta_i = maxA; animDirection = -1; }
+                if(currentTheta_i < minA) { currentTheta_i = minA; animDirection = 1; }
                 document.getElementById('angle-slider').value = (currentTheta_i * 180 / Math.PI).toFixed(1);
-                buildScene();
+                needsRebuild = true;
             }
+
+            // 动画模式下每2帧重建一次；手动模式下立即重建
+            if(needsRebuild) {
+                if(isAnimating) {
+                    animFrameCounter++;
+                    if(animFrameCounter % 2 === 0) {
+                        buildScene();
+                        needsRebuild = false;
+                    }
+                } else {
+                    buildScene();
+                    needsRebuild = false;
+                }
+            }
+
             controls.update();
             renderer.render(scene, camera);
         }
+
+        // 初始重建
         buildScene();
         animate();
-        window.addEventListener('resize',()=>{
+
+        window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
